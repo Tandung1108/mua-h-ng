@@ -130,3 +130,27 @@ select{padding:8px 12px;border-radius:10px;border:1px solid var(--line);backgrou
 .totop.show{opacity:1;transform:none;pointer-events:auto}
 @media(max-width:640px){.dgrid{grid-template-columns:1fr}.big2{height:170px;font-size:5rem}.acts .btn{padding:8px 12px}}
 .btn:disabled{opacity:.6;cursor:wait;transform:none}
+/* ===== Gợi ý tìm kiếm & nút quay lại ===== */
+.searchbox{position:relative;flex:1;min-width:0}
+.searchbox #search{width:100%}
+.suggest{position:absolute;left:0;right:0;top:calc(100% + 8px);background:var(--card);color:var(--ink);border-radius:16px;box-shadow:0 18px 40px #0006;max-height:min(70vh,460px);overflow:auto;padding:6px;z-index:60;animation:in .2s}
+.suggest[hidden]{display:none}
+.sg{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;cursor:pointer}
+.sg:hover,.sg.on{background:var(--bg)}
+.sg .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--bg);flex:none}
+.sg .pe{font-size:1.4rem}
+.sg .tx{flex:1;min-width:0;display:grid;line-height:1.3;font-size:.92rem}
+.sg .tx small{color:var(--mut);font-size:.78rem}
+.sg .pr{color:var(--hot);font-size:.88rem;white-space:nowrap}
+.sg mark{background:#ffe27a;color:#1b1a3a;border-radius:3px;padding:0 1px}
+.sgh{display:flex;justify-content:space-between;padding:8px 10px 4px;font-size:.78rem;color:var(--mut);font-weight:700}
+.sgh button,.rm{background:none;border:0;color:var(--mut);font-size:.8rem}
+.sgh button{color:var(--brand)}
+.hot{display:flex;flex-wrap:wrap;gap:6px;padding:4px 10px 10px}
+.hot .sg{padding:6px 12px;border:1px solid var(--line);border-radius:99px;font-size:.85rem}
+.sgn{padding:14px;color:var(--mut);font-size:.9rem}
+.tl{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.btn.back{background:var(--card);color:var(--brand);border:1px solid var(--line);padding:8px 16px}
+.btn.back[hidden]{display:none}
+#detailBody>.btn.back{margin-bottom:12px}
+@media(max-width:640px){.searchbox{order:3;flex-basis:100%}}

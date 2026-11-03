@@ -91,18 +91,18 @@ function cardHTML(p){
       <button class="add" onclick="addToCart(${p.id})">Thêm vào giỏ</button></div></article>`;
 }
 function renderGrid(){
-  let list = PRODUCTS.filter(p=>(!state.cat||p.cat===state.cat)&&p.name.toLowerCase().includes(state.q)&&(!state.wish||wish.includes(p.id)));
+  let list = PRODUCTS.filter(p=>(!state.cat||p.cat===state.cat)&&matchQ(p,state.q)&&(!state.wish||wish.includes(p.id)));
   const s = {asc:(a,b)=>a.price-b.price,desc:(a,b)=>b.price-a.price,sale:(a,b)=>b.sale-a.sale,rate:(a,b)=>b.rate-a.rate}[state.sort];
   if(s) list.sort(s);
-  $('listTitle').textContent = (state.cat?CATS[state.cat]:'Tất cả sản phẩm') + ` (${list.length})`;
+  $('listTitle').textContent = (state.q?`Kết quả cho “${state.q}”`:(state.cat?CATS[state.cat]:'Tất cả sản phẩm')) + ` (${list.length})`;
+$('backBtn').hidden = !(state.cat||state.q||state.wish||state.sort);
   $('grid').innerHTML = list.length ? list.map(cardHTML).join('') : '<p class="empty">Không tìm thấy sản phẩm phù hợp. Hãy thử từ khóa khác.</p>';
 }
 function renderCats(){
   $('cats').innerHTML = CATS.map((c,i)=>`<button class="chip ${i===state.cat?'on':''}" onclick="setCat(${i})">${c}</button>`).join('');
 }
-function setCat(i){state.cat=i;renderCats();renderGrid();$('grid').scrollIntoView({block:'start'})}
-function resetAll(){state={cat:0,q:'',sort:'',wish:false};$('search').value='';$('sort').value='';renderCats();renderGrid();scrollTo(0,0)}
-$('search').addEventListener('input',e=>{state.q=e.target.value.trim().toLowerCase();renderGrid()});
+function setCat(i){if(state.cat!==i)pushHist();state.cat=i;renderCats();renderGrid();$('grid').scrollIntoView({block:'start'})}
+function resetAll(){hist.length=0;closeSuggest();hist.length=0;closeSuggest();hist.length=0;closeSuggest();state={cat:0,q:'',sort:'',wish:false};$('search').value='';$('sort').value='';renderCats();renderGrid();scrollTo(0,0)}
 $('sort').addEventListener('change',e=>{state.sort=e.target.value;renderGrid()});
 
 // ===== Banner tự chạy =====
@@ -287,7 +287,7 @@ function toggleLike(id,e){
 }
 function updateWish(){$('wishCount').textContent=wish.length}
 function toggleWish(){
-  state.wish=!state.wish; renderGrid();
+  pushHist(); state.wish=!state.wish; renderGrid();
   $('listTitle').textContent = state.wish ? '❤️ Sản phẩm yêu thích ('+document.querySelectorAll('#grid .card').length+')' : $('listTitle').textContent;
   $('grid').scrollIntoView({block:'start'});
   if(state.wish&&!wish.length) toast('Bạn chưa thích sản phẩm nào. Bấm 🤍 để lưu nhé!');
@@ -306,10 +306,13 @@ const SPECS = {
 };
 let dq = 1;
 function openDetail(id){
-  const p=prod(id); dq=1;
+  const isOpen=$('detailModal').classList.contains('on');
+if(!isOpen) detailStack=[]; else if(curDetail&&curDetail!==id) detailStack.push(curDetail);
+curDetail=id;
+const p=prod(id); dq=1;
   const rel=PRODUCTS.filter(x=>x.cat===p.cat&&x.id!==id).slice(0,4);
   const reviews=[['Minh Anh','Giao nhanh, máy đẹp, đúng mô tả.'],['Quốc Bảo','Dùng rất ổn, giá tốt hơn ngoài tiệm.'],['Thu Hà','Đóng gói kỹ, nhân viên tư vấn nhiệt tình.']];
-  $('detailBody').innerHTML = `<div class="dgrid">
+  $('detailBody').innerHTML = `${detailStack.length?'<button class="btn back" onclick="detailBack()">← Quay lại</button>':''}<div class="dgrid">
     <div class="pic big2" style="background:linear-gradient(135deg,${p.grad})">${p.emoji}</div>
     <div class="dinfo"><h3>${p.name}</h3>
       <div class="meta"><span style="color:#f7a600">${'★'.repeat(Math.round(p.rate))}</span> ${p.rate} · Đã bán ${p.sold.toLocaleString('vi-VN')}</div>
@@ -361,7 +364,86 @@ function subscribe(){
   if(!/^\S+@\S+\.\S+$/.test($('nlMail').value.trim())) return toast('Email chưa đúng định dạng');
   $('nlMail').value=''; toast('Đăng ký thành công! Dùng mã GIAM10 cho đơn đầu tiên 🎁');
 }
+// ===== Gợi ý tìm kiếm + nút quay lại =====
+const HOT = ['iPhone','MacBook','Tai nghe','PS5','Apple Watch','Laptop gaming'];
+const hist = [];                       // lịch sử bộ lọc để quay lại
+let sgItems = [], sgActive = -1, detailStack = [], curDetail = null;
+const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Bỏ dấu tiếng Việt, giữ nguyên độ dài từng ký tự để tô sáng đúng chỗ
+function norm(s){return [...String(s).normalize('NFC')].map(c=>c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d').toLowerCase()).join('')}
+function tokens(q){return norm(q).split(/\s+/).filter(Boolean)}
+function matchQ(p,q){const t=tokens(q), n=norm(p.name);return t.every(x=>n.includes(x))}
+function hl(name,tok){
+  const i=tok?norm(name).indexOf(tok):-1;
+  return i<0 ? esc(name) : esc(name.slice(0,i))+'<mark>'+esc(name.slice(i,i+tok.length))+'</mark>'+esc(name.slice(i+tok.length));
+}
+function pushHist(){hist.push({...state});if(hist.length>20)hist.shift()}
+function goBack(){
+  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b); let prev;
+  do{prev=hist.pop()}while(prev&&same(prev,state));
+  state=prev?{...prev}:{cat:0,q:'',sort:'',wish:false};
+  $('search').value=state.q; $('sort').value=state.sort;
+  closeSuggest(); renderCats(); renderGrid(); $('grid').scrollIntoView({block:'start'});
+}
+function detailBack(){const id=detailStack.pop();if(id){curDetail=null;openDetail(id)}}
 
+function addRecent(q){store.set('tz_recent',[q,...store.get('tz_recent',[]).filter(x=>x!==q)].slice(0,6))}
+function removeRecent(i,e){e.stopPropagation();const r=store.get('tz_recent',[]);r.splice(i,1);store.set('tz_recent',r);renderSuggest()}
+function clearRecent(e){e.stopPropagation();store.set('tz_recent',[]);renderSuggest()}
+function logSearch(q){if(sb&&q.length>1) sb.from('search_logs').insert({keyword:q}).then(()=>{},()=>{})}
+
+function renderSuggest(){
+  const q=$('search').value.trim(), box=$('suggest'); sgItems=[]; sgActive=-1;
+  const add=(it,h)=>{sgItems.push(it);const k=sgItems.length-1;return `<div class="sg" role="option" onclick="pickSuggest(${k})">${h}</div>`};
+  let html='';
+  if(!q){
+    const rec=store.get('tz_recent',[]);
+    if(rec.length) html+='<div class="sgh">Tìm kiếm gần đây<button onclick="clearRecent(event)">Xóa tất cả</button></div>'
+      +rec.map((r,i)=>add({t:'kw',q:r},`<span class="ic">🕘</span><span class="tx">${esc(r)}</span><button class="rm" aria-label="Xóa" onclick="removeRecent(${i},event)">✕</button>`)).join('');
+    html+='<div class="sgh">Tìm nhiều nhất</div><div class="hot">'+HOT.map(h=>add({t:'kw',q:h},'🔥 '+esc(h))).join('')+'</div>';
+  } else {
+    const t=tokens(q);
+    const ps=PRODUCTS.filter(p=>matchQ(p,q)).sort((a,b)=>(norm(a.name).startsWith(t[0])?0:1)-(norm(b.name).startsWith(t[0])?0:1)||b.sold-a.sold);
+    const cs=CATS.map((c,i)=>({c,i})).filter(x=>x.i&&t.every(k=>norm(x.c).includes(k))).slice(0,2);
+    html+=add({t:'kw',q},`<span class="ic">🔍</span><span class="tx">Tìm “<b>${esc(q)}</b>” trong tất cả sản phẩm<small>${ps.length} kết quả</small></span>`);
+    cs.forEach(x=>html+=add({t:'cat',i:x.i},`<span class="ic">📂</span><span class="tx">Danh mục <b>${esc(x.c)}</b></span>`));
+    ps.slice(0,6).forEach(p=>html+=add({t:'prod',id:p.id},`<span class="ic pe" style="background:linear-gradient(135deg,${p.grad})">${p.emoji}</span><span class="tx">${hl(p.name,t[0])}<small>${esc(CATS[p.cat]||'')}</small></span><b class="pr">${money(p.price)}</b>`));
+    if(!ps.length) html+='<div class="sgn">Không có sản phẩm khớp. Thử từ khóa ngắn hơn như “iphone”, “laptop” hoặc “tai nghe”.</div>';
+  }
+  box.innerHTML=html; box.hidden=!html; $('search').setAttribute('aria-expanded',String(!!html));
+}
+function closeSuggest(){$('suggest').hidden=true;$('search').setAttribute('aria-expanded','false');sgActive=-1}
+function commitSearch(q){
+  q=q.trim(); if(!q) return closeSuggest();
+  if(state.q!==q) pushHist();
+  state.q=q; $('search').value=q; addRecent(q); logSearch(q);
+  closeSuggest(); renderGrid(); $('grid').scrollIntoView({block:'start'});
+}
+function pickSuggest(i){
+  const it=sgItems[i]; if(!it) return;
+  if(it.t==='kw') commitSearch(it.q);
+  else if(it.t==='cat'){ const q=$('search').value.trim(); if(q) addRecent(q); pushHist(); state.q=''; $('search').value=''; closeSuggest(); state.cat=0; setCat(it.i); }
+  else { const q=$('search').value.trim(); if(q) addRecent(q); closeSuggest(); openDetail(it.id); }
+}
+function markActive(){
+  document.querySelectorAll('#suggest .sg').forEach((el,i)=>el.classList.toggle('on',i===sgActive));
+  const a=document.querySelector('#suggest .sg.on'); if(a) a.scrollIntoView({block:'nearest'});
+}
+$('search').addEventListener('input',e=>{
+  const v=e.target.value;
+  if(!state.q.trim()&&v.trim()) pushHist();
+  state.q=v.trim(); renderGrid(); renderSuggest();
+});
+$('search').addEventListener('focus',renderSuggest);
+$('search').addEventListener('keydown',e=>{
+  const n=sgItems.length;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    if(!n||$('suggest').hidden) return renderSuggest();
+    e.preventDefault(); sgActive = e.key==='ArrowDown' ? (sgActive+1)%n : (sgActive<=0?n-1:sgActive-1); markActive();
+  } else if(e.key==='Enter'){ e.preventDefault(); sgActive>=0 ? pickSuggest(sgActive) : commitSearch($('search').value); }
+  else if(e.key==='Escape') closeSuggest();
+});
+document.addEventListener('click',e=>{if(!e.target.closest('.searchbox')) closeSuggest()});
 // ===== Khởi động =====
 renderCats(); renderGrid(); renderFlash(); renderCart(); renderUser(); updateWish();
 initSupabase(); showBanner(0); startBanner(); tick(); setInterval(tick,1000);

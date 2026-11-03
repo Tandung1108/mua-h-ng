@@ -10,7 +10,10 @@
 <header class="top">
   <div class="wrap bar">
     <a class="logo" href="#" onclick="resetAll();return false">⚡ TechZone</a>
-    <input id="search" type="search" placeholder="Tìm điện thoại, laptop, tai nghe..." aria-label="Tìm kiếm">
+    <div class="searchbox">
+  <input id="search" type="search" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="suggest" placeholder="Tìm điện thoại, laptop, tai nghe..." aria-label="Tìm kiếm">
+  <div id="suggest" class="suggest" role="listbox" hidden></div>
+</div>
     <div class="acts">
       <button class="btn ghost" onclick="toggleTheme()" aria-label="Đổi giao diện sáng tối">🌓</button>
       <button class="btn ghost" onclick="toggleWish()">❤️ <span id="wishCount">0</span></button>
@@ -43,7 +46,7 @@
   <nav class="cats" id="cats" aria-label="Danh mục"></nav>
 
   <div class="tools">
-    <h2 id="listTitle">Tất cả sản phẩm</h2>
+    <div class="tl"><button id="backBtn" class="btn back" onclick="goBack()" hidden>← Quay lại</button><div class="tl"><button id="backBtn" class="btn back" onclick="goBack()" hidden>← Quay lại</button><h2 id="listTitle">Tất cả sản phẩm</h2></div></div>
     <select id="sort" aria-label="Sắp xếp">
       <option value="">Mặc định</option>
       <option value="asc">Giá tăng dần</option>
