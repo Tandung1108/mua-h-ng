@@ -52,7 +52,7 @@ const RAW = [
  ['Giá đỡ laptop nhôm',8,490000,30,'🧰',4.5,8700],['AirTag bộ 4 chiếc',8,2790000,10,'📍',4.7,4200]
 ];
 const GRADS = ['#6a5cff,#b18cff','#12c2e9,#7be0ff','#ff7a59,#ffb36b','#16c79a,#7af0c8','#ff5d9e,#ffa3c8','#2f80ed,#7ab3ff','#f7b733,#ffe27a'];
-const PRODUCTS = RAW.map((r,i)=>({id:i+1,name:r[0],cat:r[1],old:r[2],sale:r[3],price:Math.round(r[2]*(100-r[3])/100/1000)*1000,emoji:r[4],rate:r[5],sold:r[6],grad:GRADS[i%GRADS.length]}));
+let PRODUCTS = RAW.map((r,i)=>({id:i+1,name:r[0],cat:r[1],old:r[2],sale:r[3],price:Math.round(r[2]*(100-r[3])/100/1000)*1000,emoji:r[4],rate:r[5],sold:r[6],grad:GRADS[i%GRADS.length]}));
 const BANNERS = [
  {t:'Siêu sale iPhone 17',d:'Giảm đến 8% + tặng ốp MagSafe',e:'📱',bg:'#2a1b8f,#9b5cff',cat:1},
  {t:'Laptop mỏng nhẹ, pin 20 giờ',d:'Trả góp 0% cho sinh viên',e:'💻',bg:'#0b6fa4,#12c2e9',cat:2},
@@ -63,8 +63,12 @@ const BANNERS = [
 const $ = id => document.getElementById(id);
 const money = n => n.toLocaleString('vi-VN') + '₫';
 const store = {get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+// ===== Kết nối Supabase (điền khóa trong supabase-config.js) =====
+const SB_ON = typeof supabase!=='undefined' && typeof SUPABASE_URL!=='undefined' && !SUPABASE_URL.includes('YOUR-PROJECT');
+const sb = SB_ON ? supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
+const prod = id => PRODUCTS.find(p=>p.id==id);
 let cart = store.get('tz_cart',{});            // {id: qty}
-let user = store.get('tz_session',null);
+let user = SB_ON ? null : store.get('tz_session',null);
 let state = {cat:0,q:'',sort:'',wish:false};
 let wish = store.get('tz_wish',[]);
 let coupon = null;
@@ -129,12 +133,12 @@ function saveCart(){store.set('tz_cart',cart);renderCart()}
 function addToCart(id){
   cart[id]=(cart[id]||0)+1; saveCart();
   const b=document.querySelector('.cartbtn'); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
-  toast('Đã thêm "'+PRODUCTS[id-1].name+'" vào giỏ');
+  toast('Đã thêm "'+prod(id).name+'" vào giỏ');
 }
 function changeQty(id,d){cart[id]+=d; if(cart[id]<=0) delete cart[id]; saveCart()}
 function removeItem(id){delete cart[id];saveCart()}
 function calc(){
-  const sub = Object.entries(cart).reduce((t,[id,q])=>t+PRODUCTS[id-1].price*q,0);
+  const sub = Object.entries(cart).reduce((t,[id,q])=>t+prod(id).price*q,0);
   let ship = sub===0||sub>=FREE_SHIP ? 0 : 30000, disc = 0;
   if(coupon&&sub){
     if(coupon.type==='pct') disc=Math.round(sub*coupon.v/100);
@@ -146,7 +150,7 @@ function calc(){
 function renderCart(){
   const ids = Object.keys(cart);
   $('cartCount').textContent = Object.values(cart).reduce((a,b)=>a+b,0);
-  $('cartItems').innerHTML = ids.length ? ids.map(id=>{const p=PRODUCTS[id-1];return `<div class="item">
+  $('cartItems').innerHTML = ids.length ? ids.map(id=>{const p=prod(id);return `<div class="item">
     <div class="pic" style="background:linear-gradient(135deg,${p.grad})">${p.emoji}</div>
     <div><b>${p.name}</b><span class="price" style="font-size:.95rem">${money(p.price)}</span>
     <div class="qty"><button onclick="changeQty(${id},-1)" aria-label="Giảm">−</button><span>${cart[id]}</span><button onclick="changeQty(${id},1)" aria-label="Tăng">+</button></div></div>
@@ -180,24 +184,64 @@ function authTab(m){
   $('authSubmit').textContent = m==='login' ? 'Đăng nhập' : 'Tạo tài khoản';
   $('authErr').textContent = '';
 }
-function submitAuth(){
-  const name=$('aName').value.trim(), email=$('aEmail').value.trim().toLowerCase(), pass=$('aPass').value;
-  const users = store.get('tz_users',{}), err=$('authErr');
+const AUTH_MSG = {'Invalid login credentials':'Sai email hoặc mật khẩu.','User already registered':'Email này đã được đăng ký. Hãy đăng nhập.','Email not confirmed':'Email chưa được xác nhận. Hãy kiểm tra hộp thư.'};
+function setUser(u){user={id:u.id,email:u.email,name:u.user_metadata?.name||u.email.split('@')[0]};renderUser()}
+function afterLogin(){closeAll();toast('Xin chào '+user.name+'! 🎉');loadWish();if(pendingCheckout){pendingCheckout=false;startCheckout()}}
+async function submitAuth(){
+  const name=$('aName').value.trim(), email=$('aEmail').value.trim().toLowerCase(), pass=$('aPass').value, err=$('authErr');
   if(!/^\S+@\S+\.\S+$/.test(email)) return err.textContent='Email chưa đúng định dạng.';
   if(pass.length<6) return err.textContent='Mật khẩu cần ít nhất 6 ký tự.';
-  if(authMode==='reg'){
-    if(!name) return err.textContent='Vui lòng nhập họ và tên.';
-    if(users[email]) return err.textContent='Email này đã được đăng ký. Hãy đăng nhập.';
-    users[email]={name,pass:btoa(unescape(encodeURIComponent(pass)))}; store.set('tz_users',users);
-  } else {
-    const u = users[email];
-    if(!u || u.pass!==btoa(unescape(encodeURIComponent(pass)))) return err.textContent='Sai email hoặc mật khẩu. Nếu chưa có tài khoản, hãy đăng ký.';
+  if(authMode==='reg'&&!name) return err.textContent='Vui lòng nhập họ và tên.';
+  err.textContent='';
+  if(sb){
+    $('authSubmit').disabled=true;
+    try{
+      const r = authMode==='reg' ? await sb.auth.signUp({email,password:pass,options:{data:{name}}}) : await sb.auth.signInWithPassword({email,password:pass});
+      if(r.error) throw r.error;
+      if(!r.data.session){closeAll();return toast('Kiểm tra email để xác nhận tài khoản rồi đăng nhập nhé 📧')}
+      setUser(r.data.user); afterLogin();
+    }catch(e){err.textContent=AUTH_MSG[e.message]||e.message}
+    finally{$('authSubmit').disabled=false}
+    return;
   }
-  user = {name: users[email].name, email}; store.set('tz_session',user);
-  renderUser(); closeAll(); toast('Xin chào ' + user.name + '! 🎉');
-  if(pendingCheckout){pendingCheckout=false;startCheckout()}
+  // Chế độ thử nghiệm (chưa cấu hình Supabase): lưu trong trình duyệt
+  const users=store.get('tz_users',{}), enc=btoa(unescape(encodeURIComponent(pass)));
+  if(authMode==='reg'){
+    if(users[email]) return err.textContent=AUTH_MSG['User already registered'];
+    users[email]={name,pass:enc}; store.set('tz_users',users);
+  } else if(!users[email]||users[email].pass!==enc) return err.textContent=AUTH_MSG['Invalid login credentials'];
+  user={name:users[email].name,email}; store.set('tz_session',user); renderUser(); afterLogin();
 }
-function logout(){user=null;store.set('tz_session',null);renderUser();toast('Bạn đã đăng xuất')}
+async function logout(){
+  if(sb) await sb.auth.signOut();
+  user=null; wish=[]; store.set('tz_session',null); store.set('tz_wish',[]);
+  renderUser(); updateWish(); renderGrid(); renderFlash(); toast('Bạn đã đăng xuất');
+}
+
+// ===== Dữ liệu từ Supabase =====
+async function loadProducts(){
+  const {data,error}=await sb.from('products').select('*').order('id');
+  if(error||!data?.length) return console.warn('Đang dùng sản phẩm mẫu:',error?.message||'bảng products trống');
+  PRODUCTS = data.map(r=>({id:r.id,name:r.name,cat:r.cat,old:r.old_price,sale:r.sale,price:Math.round(r.old_price*(100-r.sale)/100/1000)*1000,emoji:r.emoji,rate:Number(r.rate),sold:r.sold,grad:GRADS[(r.id-1)%GRADS.length]}));
+  renderGrid(); renderFlash(); renderCart();
+}
+async function loadWish(){
+  if(!sb||!user) return;
+  const {data}=await sb.from('wishlist').select('product_id');
+  if(data){wish=data.map(r=>r.product_id);store.set('tz_wish',wish);updateWish();renderGrid();renderFlash()}
+}
+async function syncWish(id){
+  if(!sb||!user) return;
+  const {error}=await (wish.includes(id) ? sb.from('wishlist').upsert({user_id:user.id,product_id:id}) : sb.from('wishlist').delete().match({user_id:user.id,product_id:id}));
+  if(error) toast('Chưa đồng bộ được mục yêu thích');
+}
+async function initSupabase(){
+  if(!sb) return console.info('Chưa cấu hình Supabase: đang chạy chế độ thử nghiệm.');
+  const {data}=await sb.auth.getSession();
+  if(data.session) setUser(data.session.user);
+  sb.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT'&&user){user=null;renderUser()}});
+  await loadProducts(); await loadWish();
+}
 
 // ===== Mua hàng =====
 let pendingCheckout = false;
@@ -209,12 +253,18 @@ function startCheckout(){
   $('payErr').textContent='';
   openModal('payModal');
 }
-function placeOrder(){
+async function placeOrder(){
   const n=$('pName').value.trim(), ph=$('pPhone').value.trim(), ad=$('pAddr').value.trim();
   if(!n||!/^0\d{9}$/.test(ph.replace(/\s/g,''))||ad.length<8) return $('payErr').textContent='Vui lòng nhập tên, số điện thoại 10 số và địa chỉ đầy đủ.';
   const method=document.querySelector('input[name=pay]:checked').value, c=calc();
   const code='TZ'+Date.now().toString().slice(-7);
-  const orders=store.get('tz_orders',[]); orders.push({code,email:user.email,items:cart,total:c.total,method,at:Date.now()}); store.set('tz_orders',orders);
+  if(sb){
+    const items=Object.entries(cart).map(([id,q])=>({id:+id,name:prod(id).name,price:prod(id).price,qty:q}));
+    const {error}=await sb.from('orders').insert({user_id:user.id,code,customer:n,phone:ph,address:ad,method,items,subtotal:c.sub,discount:c.disc,shipping:c.ship,total:c.total});
+    if(error) return $('payErr').textContent='Không lưu được đơn hàng: '+error.message;
+  } else {
+    const orders=store.get('tz_orders',[]); orders.push({code,email:user.email,items:cart,total:c.total,method,at:Date.now()}); store.set('tz_orders',orders);
+  }
   cart={}; coupon=null; $('coupon').value=''; saveCart();
   $('doneMsg').innerHTML = `Mã đơn <b>${code}</b> · ${money(c.total)}<br>${method}. Dự kiến giao trong 2 giờ.`;
   openModal('doneModal');
@@ -232,7 +282,7 @@ function applyCoupon(){
 function toggleLike(id,e){
   e.stopPropagation();
   wish = wish.includes(id) ? wish.filter(x=>x!==id) : [...wish,id];
-  store.set('tz_wish',wish); updateWish(); renderGrid(); renderFlash();
+  store.set('tz_wish',wish); syncWish(id); updateWish(); renderGrid(); renderFlash();
   toast(wish.includes(id)?'Đã lưu vào yêu thích':'Đã bỏ khỏi yêu thích');
 }
 function updateWish(){$('wishCount').textContent=wish.length}
@@ -256,7 +306,7 @@ const SPECS = {
 };
 let dq = 1;
 function openDetail(id){
-  const p=PRODUCTS[id-1]; dq=1;
+  const p=prod(id); dq=1;
   const rel=PRODUCTS.filter(x=>x.cat===p.cat&&x.id!==id).slice(0,4);
   const reviews=[['Minh Anh','Giao nhanh, máy đẹp, đúng mô tả.'],['Quốc Bảo','Dùng rất ổn, giá tốt hơn ngoài tiệm.'],['Thu Hà','Đóng gói kỹ, nhân viên tư vấn nhiệt tình.']];
   $('detailBody').innerHTML = `<div class="dgrid">
@@ -282,15 +332,20 @@ function addMany(id,buyNow){
 }
 
 // ===== Lịch sử đơn hàng =====
-function openOrders(){
+async function openOrders(){
   if(!user){toast('Hãy đăng nhập để xem đơn hàng');return openAuth()}
-  const list=store.get('tz_orders',[]).filter(o=>o.email===user.email).reverse();
+  let list;
+  if(sb){
+    const {data,error}=await sb.from('orders').select('*').order('created_at',{ascending:false});
+    if(error) return toast('Không tải được đơn hàng');
+    list=data.map(o=>({code:o.code,at:new Date(o.created_at).getTime(),method:o.method,total:o.total,lines:o.items.map(i=>i.name+' ×'+i.qty)}));
+  } else {
+    list=store.get('tz_orders',[]).filter(o=>o.email===user.email).reverse().map(o=>({code:o.code,at:o.at,method:o.method,total:o.total,lines:Object.entries(o.items).map(([id,q])=>prod(id).emoji+' '+prod(id).name+' ×'+q)}));
+  }
   $('ordersBody').innerHTML = list.length ? list.map(o=>{
-    const items=Object.entries(o.items).map(([id,q])=>PRODUCTS[id-1].emoji+' '+PRODUCTS[id-1].name+' ×'+q).join('<br>');
     const step=Math.min(3,Math.floor((Date.now()-o.at)/20000));
-    const st=['Đã đặt','Đang chuẩn bị','Đang giao','Đã giao'][step];
-    return `<div class="order"><div class="row"><b>#${o.code}</b><span class="state s${step}">${st}</span></div>
-      <small>${new Date(o.at).toLocaleString('vi-VN')} · ${o.method}</small><p>${items}</p><b class="price">${money(o.total)}</b></div>`;
+    return `<div class="order"><div class="row"><b>#${o.code}</b><span class="state s${step}">${['Đã đặt','Đang chuẩn bị','Đang giao','Đã giao'][step]}</span></div>
+      <small>${new Date(o.at).toLocaleString('vi-VN')} · ${o.method}</small><p>${o.lines.join('<br>')}</p><b class="price">${money(o.total)}</b></div>`;
   }).join('') : '<p class="empty">Bạn chưa có đơn hàng nào.</p>';
   openModal('ordersModal');
 }
@@ -309,4 +364,4 @@ function subscribe(){
 
 // ===== Khởi động =====
 renderCats(); renderGrid(); renderFlash(); renderCart(); renderUser(); updateWish();
-showBanner(0); startBanner(); tick(); setInterval(tick,1000);
+initSupabase(); showBanner(0); startBanner(); tick(); setInterval(tick,1000);
