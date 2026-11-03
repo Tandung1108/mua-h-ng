@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TechZone – Mua sắm công nghệ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap bar">
+    <a class="logo" href="#" onclick="resetAll();return false">⚡ TechZone</a>
+    <input id="search" type="search" placeholder="Tìm điện thoại, laptop, tai nghe..." aria-label="Tìm kiếm">
+    <div class="acts">
+      <button id="userBtn" class="btn ghost" onclick="openAuth()">👤 Đăng nhập</button>
+      <button id="logoutBtn" class="btn ghost" onclick="logout()" hidden>Đăng xuất</button>
+      <button class="btn cartbtn" onclick="toggleCart(true)">🛒 <span id="cartCount">0</span></button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero" id="hero">
+    <div class="slide" id="slide"></div>
+    <div class="dots" id="dots"></div>
+  </section>
+
+  <section class="flash">
+    <h2>🔥 Flash Sale <small>kết thúc sau</small> <span id="timer" class="timer">00:00:00</span></h2>
+    <div class="flashrow" id="flashRow"></div>
+  </section>
+
+  <nav class="cats" id="cats" aria-label="Danh mục"></nav>
+
+  <div class="tools">
+    <h2 id="listTitle">Tất cả sản phẩm</h2>
+    <select id="sort" aria-label="Sắp xếp">
+      <option value="">Mặc định</option>
+      <option value="asc">Giá tăng dần</option>
+      <option value="desc">Giá giảm dần</option>
+      <option value="sale">Giảm giá nhiều</option>
+      <option value="rate">Đánh giá cao</option>
+    </select>
+  </div>
+  <section class="grid" id="grid"></section>
+</main>
+
+<footer class="foot">© 2026 TechZone · Giao nhanh 2 giờ · Bảo hành chính hãng · Đổi trả 30 ngày</footer>
+
+<div class="overlay" id="overlay" onclick="closeAll()"></div>
+
+<aside class="drawer" id="drawer" aria-label="Giỏ hàng">
+  <div class="dhead"><h3>Giỏ hàng</h3><button class="x" onclick="toggleCart(false)">✕</button></div>
+  <div class="dbody" id="cartItems"></div>
+  <div class="dfoot">
+    <div class="row"><span>Tạm tính</span><b id="subtotal">0₫</b></div>
+    <div class="row"><span>Vận chuyển</span><b id="ship">0₫</b></div>
+    <div class="row total"><span>Tổng</span><b id="total">0₫</b></div>
+    <button class="btn buy" onclick="startCheckout()">Mua hàng</button>
+  </div>
+</aside>
+
+<div class="modal" id="authModal" role="dialog" aria-modal="true">
+  <button class="x" onclick="closeAll()">✕</button>
+  <div class="tabs"><button id="tLogin" class="on" onclick="authTab('login')">Đăng nhập</button><button id="tReg" onclick="authTab('reg')">Đăng ký</button></div>
+  <div id="authForm">
+    <input id="aName" placeholder="Họ và tên" hidden>
+    <input id="aEmail" type="email" placeholder="Email">
+    <input id="aPass" type="password" placeholder="Mật khẩu (từ 6 ký tự)">
+    <p class="err" id="authErr"></p>
+    <button class="btn buy" id="authSubmit" onclick="submitAuth()">Đăng nhập</button>
+  </div>
+</div>
+
+<div class="modal" id="payModal" role="dialog" aria-modal="true">
+  <button class="x" onclick="closeAll()">✕</button>
+  <h3>Thanh toán</h3>
+  <input id="pName" placeholder="Người nhận">
+  <input id="pPhone" placeholder="Số điện thoại" inputmode="tel">
+  <input id="pAddr" placeholder="Địa chỉ giao hàng">
+  <div class="pays" id="pays">
+    <label><input type="radio" name="pay" value="Thanh toán khi nhận hàng" checked> 💵 Khi nhận hàng</label>
+    <label><input type="radio" name="pay" value="Chuyển khoản ngân hàng"> 🏦 Chuyển khoản</label>
+    <label><input type="radio" name="pay" value="Ví điện tử"> 📱 Ví điện tử</label>
+  </div>
+  <div class="row total"><span>Cần thanh toán</span><b id="payTotal"></b></div>
+  <p class="err" id="payErr"></p>
+  <button class="btn buy" onclick="placeOrder()">Đặt hàng</button>
+</div>
+
+<div class="modal" id="doneModal" role="dialog" aria-modal="true">
+  <div class="ok">✓</div>
+  <h3>Đặt hàng thành công!</h3>
+  <p id="doneMsg"></p>
+  <button class="btn buy" onclick="closeAll()">Tiếp tục mua sắm</button>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+<script src="script.js"></script>
+</body>
+</html>
