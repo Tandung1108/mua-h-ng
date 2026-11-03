@@ -12,6 +12,9 @@
     <a class="logo" href="#" onclick="resetAll();return false">⚡ TechZone</a>
     <input id="search" type="search" placeholder="Tìm điện thoại, laptop, tai nghe..." aria-label="Tìm kiếm">
     <div class="acts">
+      <button class="btn ghost" onclick="toggleTheme()" aria-label="Đổi giao diện sáng tối">🌓</button>
+      <button class="btn ghost" onclick="toggleWish()">❤️ <span id="wishCount">0</span></button>
+      <button id="ordersBtn" class="btn ghost" onclick="openOrders()">📦 Đơn hàng</button>
       <button id="userBtn" class="btn ghost" onclick="openAuth()">👤 Đăng nhập</button>
       <button id="logoutBtn" class="btn ghost" onclick="logout()" hidden>Đăng xuất</button>
       <button class="btn cartbtn" onclick="toggleCart(true)">🛒 <span id="cartCount">0</span></button>
@@ -23,6 +26,13 @@
   <section class="hero" id="hero">
     <div class="slide" id="slide"></div>
     <div class="dots" id="dots"></div>
+  </section>
+
+  <section class="perks">
+    <div><b>🚚 Giao nhanh 2 giờ</b><span>Nội thành, miễn phí từ 500K</span></div>
+    <div><b>🛡️ Chính hãng 100%</b><span>Bảo hành tại hãng</span></div>
+    <div><b>↩️ Đổi trả 30 ngày</b><span>Lỗi là đổi, không hỏi nhiều</span></div>
+    <div><b>💳 Trả góp 0%</b><span>Duyệt nhanh trong 5 phút</span></div>
   </section>
 
   <section class="flash">
@@ -45,7 +55,15 @@
   <section class="grid" id="grid"></section>
 </main>
 
-<footer class="foot">© 2026 TechZone · Giao nhanh 2 giờ · Bảo hành chính hãng · Đổi trả 30 ngày</footer>
+<footer class="foot">
+  <div class="fgrid">
+    <div><h4>⚡ TechZone</h4><p>Cửa hàng công nghệ trực tuyến, hàng chính hãng giá tốt mỗi ngày.</p></div>
+    <div><h4>Hỗ trợ</h4><p>Hotline: 1900 1234</p><p>Chính sách đổi trả</p><p>Hướng dẫn mua hàng</p></div>
+    <div><h4>Nhận ưu đãi</h4><div class="coupon"><input id="nlMail" type="email" placeholder="Email của bạn"><button class="btn" onclick="subscribe()">Đăng ký</button></div></div>
+  </div>
+  <p>© 2026 TechZone. Mọi quyền được bảo lưu.</p>
+</footer>
+<button id="toTop" class="totop" onclick="scrollTo({top:0})" aria-label="Lên đầu trang">↑</button>
 
 <div class="overlay" id="overlay" onclick="closeAll()"></div>
 
@@ -53,6 +71,8 @@
   <div class="dhead"><h3>Giỏ hàng</h3><button class="x" onclick="toggleCart(false)">✕</button></div>
   <div class="dbody" id="cartItems"></div>
   <div class="dfoot">
+    <div class="coupon"><input id="coupon" placeholder="Mã giảm giá (GIAM10, TECH50K, FREESHIP)"><button class="btn" onclick="applyCoupon()">Áp dụng</button></div>
+    <div class="row" id="discRow" hidden><span>Giảm giá</span><b id="disc" style="color:var(--ok)"></b></div>
     <div class="row"><span>Tạm tính</span><b id="subtotal">0₫</b></div>
     <div class="row"><span>Vận chuyển</span><b id="ship">0₫</b></div>
     <div class="row total"><span>Tổng</span><b id="total">0₫</b></div>
@@ -87,6 +107,10 @@
   <p class="err" id="payErr"></p>
   <button class="btn buy" onclick="placeOrder()">Đặt hàng</button>
 </div>
+
+<div class="modal wide" id="detailModal" role="dialog" aria-modal="true"><button class="x" onclick="closeAll()">✕</button><div id="detailBody"></div></div>
+
+<div class="modal wide" id="ordersModal" role="dialog" aria-modal="true"><button class="x" onclick="closeAll()">✕</button><h3>Đơn hàng của bạn</h3><div id="ordersBody"></div></div>
 
 <div class="modal" id="doneModal" role="dialog" aria-modal="true">
   <div class="ok">✓</div>
