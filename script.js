@@ -52,7 +52,16 @@ const RAW = [
  ['Giá đỡ laptop nhôm',8,490000,30,'🧰',4.5,8700],['AirTag bộ 4 chiếc',8,2790000,10,'📍',4.7,4200]
 ];
 const GRADS = ['#6a5cff,#b18cff','#12c2e9,#7be0ff','#ff7a59,#ffb36b','#16c79a,#7af0c8','#ff5d9e,#ffa3c8','#2f80ed,#7ab3ff','#f7b733,#ffe27a'];
-let PRODUCTS = RAW.map((r,i)=>({id:i+1,name:r[0],cat:r[1],old:r[2],sale:r[3],price:Math.round(r[2]*(100-r[3])/100/1000)*1000,emoji:r[4],rate:r[5],sold:r[6],grad:GRADS[i%GRADS.length]}));
+
+// Thêm trường stock (tồn kho) ngẫu nhiên cho danh sách sản phẩm mẫu[cite: 3]
+let PRODUCTS = RAW.map((r,i)=>({
+  id:i+1, name:r[0], cat:r[1], old:r[2], sale:r[3], 
+  price:Math.round(r[2]*(100-r[3])/100/1000)*1000, 
+  emoji:r[4], rate:r[5], sold:r[6], 
+  stock: Math.floor(Math.random() * 40) + 5, // Tồn kho từ 5 đến 45
+  grad:GRADS[i%GRADS.length]
+}));
+
 const BANNERS = [
  {t:'Siêu sale iPhone 17',d:'Giảm đến 8% + tặng ốp MagSafe',e:'📱',bg:'#2a1b8f,#9b5cff',cat:1},
  {t:'Laptop mỏng nhẹ, pin 20 giờ',d:'Trả góp 0% cho sinh viên',e:'💻',bg:'#0b6fa4,#12c2e9',cat:2},
@@ -63,11 +72,11 @@ const BANNERS = [
 const $ = id => document.getElementById(id);
 const money = n => n.toLocaleString('vi-VN') + '₫';
 const store = {get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-// ===== Kết nối Supabase (điền khóa trong supabase-config.js) =====
+// ===== Kết nối Supabase =====
 const SB_ON = typeof supabase!=='undefined' && typeof SUPABASE_URL!=='undefined' && !SUPABASE_URL.includes('YOUR-PROJECT');
 const sb = SB_ON ? supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
 const prod = id => PRODUCTS.find(p=>p.id==id);
-let cart = store.get('tz_cart',{});            // {id: qty}
+let cart = store.get('tz_cart',{});            
 let user = SB_ON ? null : store.get('tz_session',null);
 let state = {cat:0,q:'',sort:'',wish:false};
 let wish = store.get('tz_wish',[]);
@@ -77,32 +86,50 @@ const FREE_SHIP = 500000;
 
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;$('toasts').append(t);setTimeout(()=>t.remove(),2400)}
 
-// ===== Hiển thị sản phẩm =====
+// ===== Hiển thị sản phẩm (Có hiển thị thông báo kho) =====
 function cardHTML(p){
   const stars = '★'.repeat(Math.round(p.rate));
   const liked = wish.includes(p.id);
+  
+  // Hiển thị trạng thái kho
+  let stockHTML = '';
+  if (p.stock <= 0) {
+    stockHTML = `<div class="stock-alert out">Tạm hết hàng</div>`;
+  } else if (p.stock <= 5) {
+    stockHTML = `<div class="stock-alert low">Chỉ còn ${p.stock} sản phẩm</div>`;
+  } else {
+    stockHTML = `<div class="stock-alert">Còn hàng (${p.stock})</div>`;
+  }
+
   return `<article class="card">
     <span class="badge">-${p.sale}%</span>
     <button class="heart ${liked?'on':''}" onclick="toggleLike(${p.id},event)" aria-label="Yêu thích">${liked?'❤️':'🤍'}</button>
     <div class="pic" style="background:linear-gradient(135deg,${p.grad});cursor:pointer" onclick="openDetail(${p.id})">${p.emoji}</div>
-    <div class="info"><div class="name" style="cursor:pointer" onclick="openDetail(${p.id})">${p.name}</div>
+    <div class="info">
+      <div class="name" style="cursor:pointer" onclick="openDetail(${p.id})">${p.name}</div>
       <div class="meta"><span style="color:#f7a600">${stars}</span> ${p.rate} · Đã bán ${p.sold.toLocaleString('vi-VN')}</div>
+      ${stockHTML}
       <div><span class="price">${money(p.price)}</span><span class="old">${money(p.old)}</span></div>
-      <button class="add" onclick="addToCart(${p.id})">Thêm vào giỏ</button></div></article>`;
+      <button class="add" ${p.stock <= 0 ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''} onclick="addToCart(${p.id})">
+        ${p.stock <= 0 ? 'Hết hàng' : 'Thêm vào giỏ'}
+      </button>
+    </div>
+  </article>`;
 }
+
 function renderGrid(){
   let list = PRODUCTS.filter(p=>(!state.cat||p.cat===state.cat)&&matchQ(p,state.q)&&(!state.wish||wish.includes(p.id)));
   const s = {asc:(a,b)=>a.price-b.price,desc:(a,b)=>b.price-a.price,sale:(a,b)=>b.sale-a.sale,rate:(a,b)=>b.rate-a.rate}[state.sort];
   if(s) list.sort(s);
   $('listTitle').textContent = (state.q?`Kết quả cho “${state.q}”`:(state.cat?CATS[state.cat]:'Tất cả sản phẩm')) + ` (${list.length})`;
-$('backBtn').hidden = !(state.cat||state.q||state.wish||state.sort);
+  $('backBtn').hidden = !(state.cat||state.q||state.wish||state.sort);
   $('grid').innerHTML = list.length ? list.map(cardHTML).join('') : '<p class="empty">Không tìm thấy sản phẩm phù hợp. Hãy thử từ khóa khác.</p>';
 }
 function renderCats(){
   $('cats').innerHTML = CATS.map((c,i)=>`<button class="chip ${i===state.cat?'on':''}" onclick="setCat(${i})">${c}</button>`).join('');
 }
 function setCat(i){if(state.cat!==i)pushHist();state.cat=i;renderCats();renderGrid();$('grid').scrollIntoView({block:'start'})}
-function resetAll(){hist.length=0;closeSuggest();hist.length=0;closeSuggest();hist.length=0;closeSuggest();state={cat:0,q:'',sort:'',wish:false};$('search').value='';$('sort').value='';renderCats();renderGrid();scrollTo(0,0)}
+function resetAll(){hist.length=0;closeSuggest();state={cat:0,q:'',sort:'',wish:false};$('search').value='';$('sort').value='';renderCats();renderGrid();scrollTo(0,0)}
 $('sort').addEventListener('change',e=>{state.sort=e.target.value;renderGrid()});
 
 // ===== Banner tự chạy =====
@@ -131,11 +158,21 @@ function tick(){
 // ===== Giỏ hàng =====
 function saveCart(){store.set('tz_cart',cart);renderCart()}
 function addToCart(id){
+  const p = prod(id);
+  if(p && p.stock <= 0) return toast('Sản phẩm này đã tạm hết hàng!');
+  if((cart[id] || 0) + 1 > p.stock) return toast(`Chỉ còn ${p.stock} sản phẩm trong kho!`);
+  
   cart[id]=(cart[id]||0)+1; saveCart();
   const b=document.querySelector('.cartbtn'); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
-  toast('Đã thêm "'+prod(id).name+'" vào giỏ');
+  toast('Đã thêm "'+p.name+'" vào giỏ');
 }
-function changeQty(id,d){cart[id]+=d; if(cart[id]<=0) delete cart[id]; saveCart()}
+function changeQty(id,d){
+  const p = prod(id);
+  const newQty = (cart[id] || 0) + d;
+  if(newQty > p.stock) return toast(`Chỉ còn ${p.stock} sản phẩm trong kho!`);
+  
+  cart[id]=newQty; if(cart[id]<=0) delete cart[id]; saveCart();
+}
 function removeItem(id){delete cart[id];saveCart()}
 function calc(){
   const sub = Object.entries(cart).reduce((t,[id,q])=>t+prod(id).price*q,0);
@@ -204,7 +241,6 @@ async function submitAuth(){
     finally{$('authSubmit').disabled=false}
     return;
   }
-  // Chế độ thử nghiệm (chưa cấu hình Supabase): lưu trong trình duyệt
   const users=store.get('tz_users',{}), enc=btoa(unescape(encodeURIComponent(pass)));
   if(authMode==='reg'){
     if(users[email]) return err.textContent=AUTH_MSG['User already registered'];
@@ -218,11 +254,17 @@ async function logout(){
   renderUser(); updateWish(); renderGrid(); renderFlash(); toast('Bạn đã đăng xuất');
 }
 
-// ===== Dữ liệu từ Supabase =====
+// ===== Dữ liệu từ Supabase (Đã bổ sung lấy cột stock) =====
 async function loadProducts(){
   const {data,error}=await sb.from('products').select('*').order('id');
   if(error||!data?.length) return console.warn('Đang dùng sản phẩm mẫu:',error?.message||'bảng products trống');
-  PRODUCTS = data.map(r=>({id:r.id,name:r.name,cat:r.cat,old:r.old_price,sale:r.sale,price:Math.round(r.old_price*(100-r.sale)/100/1000)*1000,emoji:r.emoji,rate:Number(r.rate),sold:r.sold,grad:GRADS[(r.id-1)%GRADS.length]}));
+  PRODUCTS = data.map(r=>({
+    id:r.id, name:r.name, cat:r.cat, old:r.old_price, sale:r.sale, 
+    price:Math.round(r.old_price*(100-r.sale)/100/1000)*1000, 
+    emoji:r.emoji, rate:Number(r.rate), sold:r.sold, 
+    stock: r.stock ?? 15, // Lấy số lượng tồn kho từ Supabase
+    grad:GRADS[(r.id-1)%GRADS.length]
+  }));
   renderGrid(); renderFlash(); renderCart();
 }
 async function loadWish(){
@@ -243,11 +285,18 @@ async function initSupabase(){
   await loadProducts(); await loadWish();
 }
 
-// ===== Mua hàng =====
+// ===== Mua hàng (Cập nhật trừ tồn kho trực tiếp) =====
 let pendingCheckout = false;
 function startCheckout(){
   if(!Object.keys(cart).length) return toast('Giỏ hàng đang trống');
   if(!user){pendingCheckout=true;toast('Vui lòng đăng nhập để mua hàng');return openAuth()}
+  
+  // Kiểm tra lại tồn kho trong giỏ trước khi thanh toán
+  for(let [id, q] of Object.entries(cart)){
+    const p = prod(id);
+    if(p && p.stock < q) return toast(`Sản phẩm "${p.name}" chỉ còn lại ${p.stock} trong kho!`);
+  }
+
   $('pName').value = $('pName').value || user.name;
   $('payTotal').textContent = money(calc().total);
   $('payErr').textContent='';
@@ -258,14 +307,31 @@ async function placeOrder(){
   if(!n||!/^0\d{9}$/.test(ph.replace(/\s/g,''))||ad.length<8) return $('payErr').textContent='Vui lòng nhập tên, số điện thoại 10 số và địa chỉ đầy đủ.';
   const method=document.querySelector('input[name=pay]:checked').value, c=calc();
   const code='TZ'+Date.now().toString().slice(-7);
+  
   if(sb){
     const items=Object.entries(cart).map(([id,q])=>({id:+id,name:prod(id).name,price:prod(id).price,qty:q}));
+    
+    // 1. Lưu đơn hàng
     const {error}=await sb.from('orders').insert({user_id:user.id,code,customer:n,phone:ph,address:ad,method,items,subtotal:c.sub,discount:c.disc,shipping:c.ship,total:c.total});
     if(error) return $('payErr').textContent='Không lưu được đơn hàng: '+error.message;
+
+    // 2. Trừ tồn kho trên Supabase
+    for(let [id, q] of Object.entries(cart)){
+      const p = prod(id);
+      const newStock = Math.max(0, p.stock - q);
+      await sb.from('products').update({ stock: newStock }).eq('id', id);
+      p.stock = newStock;
+    }
   } else {
+    for(let [id, q] of Object.entries(cart)){
+      const p = prod(id);
+      p.stock = Math.max(0, p.stock - q);
+    }
     const orders=store.get('tz_orders',[]); orders.push({code,email:user.email,items:cart,total:c.total,method,at:Date.now()}); store.set('tz_orders',orders);
   }
+
   cart={}; coupon=null; $('coupon').value=''; saveCart();
+  renderGrid(); renderFlash();
   $('doneMsg').innerHTML = `Mã đơn <b>${code}</b> · ${money(c.total)}<br>${method}. Dự kiến giao trong 2 giờ.`;
   openModal('doneModal');
 }
@@ -307,19 +373,29 @@ const SPECS = {
 let dq = 1;
 function openDetail(id){
   const isOpen=$('detailModal').classList.contains('on');
-if(!isOpen) detailStack=[]; else if(curDetail&&curDetail!==id) detailStack.push(curDetail);
-curDetail=id;
-const p=prod(id); dq=1;
+  if(!isOpen) detailStack=[]; else if(curDetail&&curDetail!==id) detailStack.push(curDetail);
+  curDetail=id;
+  const p=prod(id); dq=1;
   const rel=PRODUCTS.filter(x=>x.cat===p.cat&&x.id!==id).slice(0,4);
   const reviews=[['Minh Anh','Giao nhanh, máy đẹp, đúng mô tả.'],['Quốc Bảo','Dùng rất ổn, giá tốt hơn ngoài tiệm.'],['Thu Hà','Đóng gói kỹ, nhân viên tư vấn nhiệt tình.']];
+  
+  let stockDetail = '';
+  if (p.stock <= 0) stockDetail = `<div class="stock-alert out" style="font-size:0.9rem">Tạm hết hàng</div>`;
+  else if (p.stock <= 5) stockDetail = `<div class="stock-alert low" style="font-size:0.9rem">Chỉ còn lại ${p.stock} sản phẩm trong kho</div>`;
+  else stockDetail = `<div class="stock-alert" style="font-size:0.9rem">Còn hàng (${p.stock} sản phẩm)</div>`;
+
   $('detailBody').innerHTML = `${detailStack.length?'<button class="btn back" onclick="detailBack()">← Quay lại</button>':''}<div class="dgrid">
     <div class="pic big2" style="background:linear-gradient(135deg,${p.grad})">${p.emoji}</div>
     <div class="dinfo"><h3>${p.name}</h3>
       <div class="meta"><span style="color:#f7a600">${'★'.repeat(Math.round(p.rate))}</span> ${p.rate} · Đã bán ${p.sold.toLocaleString('vi-VN')}</div>
+      ${stockDetail}
       <div><span class="price" style="font-size:1.6rem">${money(p.price)}</span><span class="old">${money(p.old)}</span> <span class="badge" style="position:static">-${p.sale}%</span></div>
       <ul class="specs">${SPECS[p.cat].map(s=>'<li>✔ '+s+'</li>').join('')}</ul>
-      <div class="qty"><button onclick="dqty(-1)">−</button><span id="dq">1</span><button onclick="dqty(1)">+</button></div>
-      <div class="dbtns"><button class="btn add" onclick="addMany(${id})">Thêm vào giỏ</button><button class="btn buy" style="margin:0" onclick="addMany(${id},true)">Mua ngay</button></div>
+      <div class="qty"><button onclick="dqty(-1)" ${p.stock<=0?'disabled':''}>−</button><span id="dq">1</span><button onclick="dqty(1)" ${p.stock<=0?'disabled':''}>+</button></div>
+      <div class="dbtns">
+        <button class="btn add" ${p.stock<=0?'disabled style="opacity:0.5;cursor:not-allowed"':''} onclick="addMany(${id})">${p.stock<=0?'Hết hàng':'Thêm vào giỏ'}</button>
+        <button class="btn buy" ${p.stock<=0?'disabled style="opacity:0.5;cursor:not-allowed"':''} style="margin:0" onclick="addMany(${id},true)">Mua ngay</button>
+      </div>
     </div></div>
     <h4 style="margin:16px 0 8px">Đánh giá nổi bật</h4>
     ${reviews.map(r=>`<div class="review"><b>${r[0]}</b> <span style="color:#f7a600">★★★★★</span><br>${r[1]}</div>`).join('')}
@@ -327,8 +403,16 @@ const p=prod(id); dq=1;
     <div class="relrow">${rel.map(x=>`<div class="rel" onclick="openDetail(${x.id})"><div class="pic" style="background:linear-gradient(135deg,${x.grad});height:70px;font-size:2.2rem">${x.emoji}</div><small>${x.name}</small><b class="price" style="font-size:.9rem">${money(x.price)}</b></div>`).join('')}</div>`;
   openModal('detailModal');
 }
-function dqty(d){dq=Math.max(1,dq+d);$('dq').textContent=dq}
+function dqty(d){
+  const p = prod(curDetail);
+  dq=Math.max(1,Math.min(p.stock, dq+d));
+  $('dq').textContent=dq;
+}
 function addMany(id,buyNow){
+  const p = prod(id);
+  if(p.stock <= 0) return toast('Sản phẩm đã hết hàng!');
+  if((cart[id] || 0) + dq > p.stock) return toast(`Kho chỉ còn lại ${p.stock} sản phẩm!`);
+  
   cart[id]=(cart[id]||0)+dq; saveCart(); closeAll();
   toast('Đã thêm '+dq+' sản phẩm vào giỏ');
   if(buyNow) startCheckout();
@@ -366,10 +450,9 @@ function subscribe(){
 }
 // ===== Gợi ý tìm kiếm + nút quay lại =====
 const HOT = ['iPhone','MacBook','Tai nghe','PS5','Apple Watch','Laptop gaming'];
-const hist = [];                       // lịch sử bộ lọc để quay lại
+const hist = [];                       
 let sgItems = [], sgActive = -1, detailStack = [], curDetail = null;
 const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-// Bỏ dấu tiếng Việt, giữ nguyên độ dài từng ký tự để tô sáng đúng chỗ
 function norm(s){return [...String(s).normalize('NFC')].map(c=>c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d').toLowerCase()).join('')}
 function tokens(q){return norm(q).split(/\s+/).filter(Boolean)}
 function matchQ(p,q){const t=tokens(q), n=norm(p.name);return t.every(x=>n.includes(x))}
@@ -444,6 +527,7 @@ $('search').addEventListener('keydown',e=>{
   else if(e.key==='Escape') closeSuggest();
 });
 document.addEventListener('click',e=>{if(!e.target.closest('.searchbox')) closeSuggest()});
+
 // ===== Khởi động =====
 renderCats(); renderGrid(); renderFlash(); renderCart(); renderUser(); updateWish();
 initSupabase(); showBanner(0); startBanner(); tick(); setInterval(tick,1000);

@@ -154,3 +154,21 @@ select{padding:8px 12px;border-radius:10px;border:1px solid var(--line);backgrou
 .btn.back[hidden]{display:none}
 #detailBody>.btn.back{margin-bottom:12px}
 @media(max-width:640px){.searchbox{order:3;flex-basis:100%}}
+.stock-alert {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ok);
+  background: rgba(23, 178, 106, 0.1);
+  padding: 2px 8px;
+  border-radius: 6px;
+  width: fit-content;
+  margin: 2px 0;
+}
+.stock-alert.low {
+  color: #f7b733;
+  background: rgba(247, 183, 51, 0.1);
+}
+.stock-alert.out {
+  color: var(--hot);
+  background: rgba(255, 77, 94, 0.1);
+}
